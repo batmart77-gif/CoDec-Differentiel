@@ -1,0 +1,48 @@
+#include <stddef.h>
+#include <limits.h>
+
+typedef struct
+    { unsigned char* ptr; /* pointeur sur l’octet courant */
+    size_t cap; /* capacité en lecture/écriture */
+} BitStream;
+
+size_t pushbits(unsigned char src, size_t nbit, BitStream* dst) {
+    size_t bits_written = 0;
+
+    while (nbit > 0) {
+        size_t to_write = (nbit <= dst->cap) ? nbit : dst->cap;
+        unsigned char aligned_bits = src >> (nbit - to_write);
+        aligned_bits &= (1 << to_write) - 1;
+
+        *dst->ptr |= aligned_bits << (dst->cap - to_write);
+        dst->cap -= to_write;
+        nbit -= to_write;
+        bits_written += to_write;
+        
+        if (dst->cap == 0) {
+            dst->ptr++;
+            *dst->ptr = 0; // initialiser un nouveau octet
+            dst->cap = CHAR_BIT;
+        }
+    }
+
+    return bits_written;
+}
+
+size_t pullbits(BitStream* src, unsigned char* dst, size_t nbit) {
+    size_t bits_read = 0;
+    *dst = 0;
+    while (nbit > 0) {
+        size_t to_read = (nbit <= src->cap) ? nbit : src->cap;
+        unsigned char extracted_bits = (*src->ptr >> (src->cap - to_read)) & ((1 << to_read) - 1);
+        *dst = (*dst << to_read) | extracted_bits;
+        src->cap -= to_read;
+        nbit -= to_read;
+        bits_read += to_read;
+        if (src->cap == 0) {
+            src->ptr++;
+            src->cap = CHAR_BIT;
+        }
+    }
+    return bits_read;
+}
