@@ -18,8 +18,8 @@ $(TARGET): $(OBJ)
 clean:
 	rm -f $(OBJ) $(TARGET)
 
-test:
-	./$(TARGET) -i $(IMAGES_DIR)/boat.pgm
+clean-zone:
+	powershell.exe -Command "Get-ChildItem -Recurse | Unblock-File"
 
 .PHONY: all clean test
 
