@@ -1,10 +1,8 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stddef.h>
 #include <limits.h>
-
-typedef struct
-    { unsigned char* ptr; /* pointeur sur l’octet courant */
-    size_t cap; /* capacité en lecture/écriture */
-} BitStream;
+#include "bitstream.h"
 
 size_t pushbits(unsigned char src, size_t nbit, BitStream* dst) {
     size_t bits_written = 0;
