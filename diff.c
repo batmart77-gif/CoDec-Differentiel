@@ -19,20 +19,20 @@ diff_image* image_to_diff(const image *img) {
     diff->layer  = img->layer;
 
     size_t size = img->width * img->height * img->layer;
-    diff->data = malloc(size * sizeof(signed char));
+    diff->data = malloc(size * sizeof(int16_t));
     if (!diff->data) {
         free(diff);
         return NULL;
     }
 
-    for (size_t c = 0; c < img->layer; c++) {
-        diff->data[c] = (signed char)(img->pixmap[c] / 2);
+    for (size_t c = 0; c < img->layer; ++c) {
+        diff->data[c] = (int16_t)(img->pixmap[c]);
     }
 
-    for (size_t i = img->layer; i < size; i++) {
-        int curr = img->pixmap[i] / 2;
-        int prev = img->pixmap[i - img->layer] / 2;
-        diff->data[i] = (signed char)(curr - prev);
+    for (size_t i = img->layer; i < size; ++i) {
+        int curr = img->pixmap[i];
+        int prev = img->pixmap[i - img->layer];
+        diff->data[i] = (int16_t)(curr - prev);
     }
 
     return diff;
@@ -40,8 +40,7 @@ diff_image* image_to_diff(const image *img) {
 
 
 
-image *diff_to_image(const diff_image *diff)
-{
+image *diff_to_image(const diff_image *diff) {
     if (!diff || !diff->data)
         return NULL;
 
@@ -73,7 +72,7 @@ image *diff_to_image(const diff_image *diff)
     size_t size = img->pixmap_size;
 
     for (size_t c = 0; c < img->layer; ++c) {
-        int v = (int)diff->data[c] * 2;
+        int v = diff->data[c];
 
         if (v < 0)   v = 0;
         if (v > 255) v = 255;
@@ -82,9 +81,9 @@ image *diff_to_image(const diff_image *diff)
     }
 
     for (size_t i = img->layer; i < size; ++i) {
-        int prev = img->pixmap[i - img->layer] / 2;
+        int prev = img->pixmap[i - img->layer];
         int d    = (int)diff->data[i];
-        int curr = (prev + d) * 2;
+        int curr = (prev + d);
 
         if (curr < 0)   curr = 0;
         if (curr > 255) curr = 255;

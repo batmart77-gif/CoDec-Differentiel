@@ -2,13 +2,14 @@
 #define DIFF_H
 
 #include <stdio.h>
+#include <stdint.h>
 #include "image.h"
 
 typedef struct {
     size_t width;
     size_t height;
     size_t layer;
-    signed char *data;   // IMPORTANT : signé
+    int16_t *data;   // IMPORTANT : signé
 } diff_image;
 
 /* Encodeur : image PNM -> diff en mémoire */
