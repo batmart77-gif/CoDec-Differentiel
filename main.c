@@ -7,6 +7,7 @@
 
 #include "image.h"
 #include "diff.h"
+#include "normalize.h"
 
 int main(int argc, char *argv[]) {
     int opt;
@@ -15,6 +16,7 @@ int main(int argc, char *argv[]) {
     image img = {0};
     diff_image *diff = NULL;
     image *recon = NULL;
+    unsigned int *norm = NULL;
 
 
     /*Gestion des options */
@@ -52,6 +54,21 @@ int main(int argc, char *argv[]) {
 
     printf("Transformation différentielle OK\n");
 
+    /* diff -> normalisation */
+    size_t size = diff->width * diff->height * diff->layer;
+    norm = normalize_diff(diff);
+    if (!norm) {
+        fprintf(stderr, "Erreur: normalize_diff a échoué\n");
+        goto cleanup;
+    }
+    printf("Normalisation OK\n");
+
+    /*Fonctions pour la VLC à mettre ici*/
+
+    /* dénormalisation -> diff */
+    denormalize_diff(norm, size, diff);
+    printf("Dénormalisation OK\n");
+
     /* diff -> image */
     recon = diff_to_image(diff);
     if (!recon) {
@@ -70,6 +87,7 @@ int main(int argc, char *argv[]) {
     printf("Image reconstruite écrite dans reconstructed.pnm\n");
 
 cleanup:
+    free(norm);
     if (diff) {
         free(diff->data);
         free(diff);
@@ -82,3 +100,40 @@ cleanup:
     free(image_path);
     return 0;
 }
+
+
+// pour tester les fonctions normalize/denormalize (ctrl + / pour commenter/decommenter)
+// int main(void) {
+//     diff_image diff;
+//     int16_t data[] = {
+//         0, -1, 1, -2, 2, -5, 5, -10, 10
+//     };
+
+//     diff.data = data;
+//     diff.width = 3;
+//     diff.height = 3;
+//     diff.layer = 1;
+
+//     size_t size = 9;
+
+//     unsigned int *norm = normalize_diff(&diff);
+//     if (!norm) {
+//         fprintf(stderr, "normalize_diff a échoué\n");
+//         return 1;
+//     }
+
+//     diff_image back;
+//     back.data = malloc(size * sizeof(int16_t));
+
+//     denormalize_diff(norm, size, &back);
+
+//     printf("diff  -> norm -> diff\n");
+//     for (size_t i = 0; i < size; i++) {
+//         printf("%4d -> %4u -> %4d\n",
+//                diff.data[i], norm[i], back.data[i]);
+//     }
+
+//     free(norm);
+//     free(back.data);
+//     return 0;
+// }

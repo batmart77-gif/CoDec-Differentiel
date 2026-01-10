@@ -95,42 +95,42 @@ image *diff_to_image(const diff_image *diff) {
 }
 
 
-static int read_dif(const char *path, diff_image *diff);
+// static int read_dif(const char *path, diff_image *diff);
 
-int diftopnm(const char *difinput, const char *pnmoutput)
-{
-    diff_image diff = {0};
-    image *img = NULL;
-    int ret = 1; 
+// int diftopnm(const char *difinput, const char *pnmoutput)
+// {
+//     diff_image diff = {0};
+//     image *img = NULL;
+//     int ret = 1; 
 
-    if (!read_dif(difinput, &diff)) {
-        goto cleanup;
-    }
+//     if (!read_dif(difinput, &diff)) {
+//         goto cleanup;
+//     }
 
-    img = diff_to_image(&diff);
-    if (!img) {
-        goto cleanup;
-    }
+//     img = diff_to_image(&diff);
+//     if (!img) {
+//         goto cleanup;
+//     }
 
-    if (!write_image(img, pnmoutput)) {
-        goto cleanup;
-    }
+//     if (!write_image(img, pnmoutput)) {
+//         goto cleanup;
+//     }
 
-    ret = 0; 
+//     ret = 0; 
 
-cleanup:
-    if (diff.data)
-        free(diff.data);
-    if (img) {
-        free_image(img);
-        free(img);
-    }
-    return ret;
-}
+// cleanup:
+//     if (diff.data)
+//         free(diff.data);
+//     if (img) {
+//         free_image(img);
+//         free(img);
+//     }
+//     return ret;
+// }
 
-static int read_dif(const char *path, diff_image *diff)
-{
-    (void)path;
-    (void)diff;
-    return 0;
-}
+// static int read_dif(const char *path, diff_image *diff)
+// {
+//     (void)path;
+//     (void)diff;
+//     return 0;
+// }
