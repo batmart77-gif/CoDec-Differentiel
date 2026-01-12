@@ -64,6 +64,37 @@ int main(int argc, char *argv[]) {
     printf("Normalisation OK\n");
 
     /*Fonctions pour la VLC à mettre ici*/
+        /* --- VLC : norm -> flux binaire -> norm_decoded --- */
+    unsigned char *vlc_buf = NULL;
+    size_t vlc_bytes = 0;
+
+    size_t bits_written = vlc_encode(norm, size, &vlc_buf, &vlc_bytes);
+    if (bits_written == 0 || !vlc_buf) {
+        fprintf(stderr, "Erreur: vlc_encode a échoué\n");
+        goto cleanup;
+    }
+    printf("VLC encodage OK (%zu bits, %zu octets)\n", bits_written, vlc_bytes);
+
+    unsigned int *norm_dec = malloc(size * sizeof(unsigned int));
+    if (!norm_dec) {
+        fprintf(stderr, "Erreur: malloc norm_dec\n");
+        goto cleanup;
+    }
+
+    size_t bits_read = vlc_decode(vlc_buf, vlc_bytes, norm_dec, size);
+    if (bits_read == 0) {
+        fprintf(stderr, "Erreur: vlc_decode a échoué\n");
+        free(norm_dec);
+        goto cleanup;
+    }
+    printf("VLC décodage OK (%zu bits)\n", bits_read);
+
+    /* on peut maintenant utiliser norm_dec pour la dénormalisation */
+    denormalize_diff(norm_dec, size, diff);
+    printf("Dénormalisation OK\n");
+
+    free(norm_dec);
+    free(vlc_buf);
 
     /* dénormalisation -> diff */
     denormalize_diff(norm, size, diff);
