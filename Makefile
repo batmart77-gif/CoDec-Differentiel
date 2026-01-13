@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c17 -g -D_POSIX_C_SOURCE=200809L
 INCLUDES = -I.
-SRC = main.c image.c diff.c bitstream.c normalize.c
+SRC = main.c image.c diff.c bitstream.c normalize.c vlc.c
 OBJ = $(SRC:.c=.o)
 TARGET = codec
 

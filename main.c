@@ -8,6 +8,7 @@
 #include "image.h"
 #include "diff.h"
 #include "normalize.h"
+#include "vlc.h"
 
 int main(int argc, char *argv[]) {
     int opt;
@@ -17,6 +18,8 @@ int main(int argc, char *argv[]) {
     diff_image *diff = NULL;
     image *recon = NULL;
     unsigned int *norm = NULL;
+    unsigned int *norm_dec = NULL;
+    unsigned char *vlc_buf = NULL;
 
 
     /*Gestion des options */
@@ -65,39 +68,30 @@ int main(int argc, char *argv[]) {
 
     /*Fonctions pour la VLC à mettre ici*/
         /* --- VLC : norm -> flux binaire -> norm_decoded --- */
-    unsigned char *vlc_buf = NULL;
     size_t vlc_bytes = 0;
 
     size_t bits_written = vlc_encode(norm, size, &vlc_buf, &vlc_bytes);
-    if (bits_written == 0 || !vlc_buf) {
+    if (!bits_written) {
         fprintf(stderr, "Erreur: vlc_encode a échoué\n");
         goto cleanup;
     }
     printf("VLC encodage OK (%zu bits, %zu octets)\n", bits_written, vlc_bytes);
 
-    unsigned int *norm_dec = malloc(size * sizeof(unsigned int));
+    norm_dec = malloc(size * sizeof(unsigned int));
     if (!norm_dec) {
         fprintf(stderr, "Erreur: malloc norm_dec\n");
         goto cleanup;
     }
 
     size_t bits_read = vlc_decode(vlc_buf, vlc_bytes, norm_dec, size);
-    if (bits_read == 0) {
+    if (!bits_read) {
         fprintf(stderr, "Erreur: vlc_decode a échoué\n");
-        free(norm_dec);
         goto cleanup;
     }
     printf("VLC décodage OK (%zu bits)\n", bits_read);
 
     /* on peut maintenant utiliser norm_dec pour la dénormalisation */
     denormalize_diff(norm_dec, size, diff);
-    printf("Dénormalisation OK\n");
-
-    free(norm_dec);
-    free(vlc_buf);
-
-    /* dénormalisation -> diff */
-    denormalize_diff(norm, size, diff);
     printf("Dénormalisation OK\n");
 
     /* diff -> image */
@@ -119,6 +113,8 @@ int main(int argc, char *argv[]) {
 
 cleanup:
     free(norm);
+    free(norm_dec);
+    free(vlc_buf);
     if (diff) {
         free(diff->data);
         free(diff);
@@ -166,5 +162,23 @@ cleanup:
 
 //     free(norm);
 //     free(back.data);
+//     return 0;
+// }
+
+// int main(void) {
+//     unsigned int input[] = {0,1,2,3,4,5,10,19,20,30,40,51,52,100,200,255};
+//     size_t n = sizeof(input)/sizeof(input[0]);
+//     unsigned char* buf = NULL;
+//     size_t bytes = 0;
+
+//     vlc_encode(input, n, &buf, &bytes);
+
+//     unsigned int output[n];
+//     vlc_decode(buf, bytes, output, n);
+
+//     for (size_t i = 0; i < n; i++)
+//         printf("%3u -> %3u\n", input[i], output[i]);
+
+//     free(buf);
 //     return 0;
 // }

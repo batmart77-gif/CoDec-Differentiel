@@ -23,15 +23,14 @@ typedef struct {
 } QuantInterval;
 
 static const QuantInterval Q[4] = {
-    {  0u,   4u, 2u, 0b00000000, 1u }, /* "0"   */
-    {  4u,  20u, 4u, 0b10000000, 2u }, /* "10"  */
-    { 20u,  52u, 5u, 0b11000000, 3u }, /* "110" */
-    { 52u, 256u, 8u, 0b11100000, 3u }  /* "111" */
+    {  0u,   4u, 2u, 0, 1u }, /* "0"   */
+    {  4u,  20u, 4u, 2, 2u }, /* "10"  */
+    { 20u,  52u, 5u, 6, 3u }, /* "110" */
+    { 52u, 512u, 8u, 7, 3u }  /* "111" */
 };
 
 /* Cherche l'intervalle contenant x dans Q, retourne son index (0..3) ou -1 si erreur */
-static int find_interval(unsigned int x)
-{
+static int find_interval(unsigned int x) {
     for (int k = 0; k < 4; ++k) {
         if (x >= Q[k].binf && x < Q[k].bsup)
             return k;
@@ -41,53 +40,53 @@ static int find_interval(unsigned int x)
 
 /* ----------------- ENCODAGE ----------------- */
 
-size_t vlc_encode(const unsigned int *in, size_t n,
-                  unsigned char **out_buf, size_t *out_bytes)
-{
-    if (!in || !out_buf || !out_bytes)
-        return 0;
+size_t vlc_encode(const unsigned int *in, size_t n, unsigned char **out_buf, size_t *out_size) {
+    if (!in || n == 0) return 0;
 
-    /* estimation large : au pire 11 bits par valeur => (11*n)/8 octets */
-    size_t max_bits  = 11 * n;
-    size_t buf_bytes = (max_bits + CHAR_BIT - 1) / CHAR_BIT;
-    if (buf_bytes == 0)
-        buf_bytes = 1;
-
-    unsigned char *buf = calloc(buf_bytes, 1);
-    if (!buf)
-        return 0;
+    // 1. Allocation du buffer de sortie (12 bits max par pixel -> 2 octets/pixel c'est large)
+    size_t capacity = (size_t)(n * 1.5); 
+    *out_buf = calloc(capacity, sizeof(unsigned char)); // calloc met tout à 0 (crucial !)
+    if (!*out_buf) return 0;
 
     BitStream bs;
-    bs.ptr = buf;
-    bs.cap = CHAR_BIT;
+    bs.ptr = *out_buf;
+    bs.cap = 8; // On commence avec un octet vide (8 bits de capacité)
 
     size_t total_bits = 0;
 
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; i++) {
         unsigned int x = in[i];
+        
+        // 2. Trouver l'intervalle correspondant
         int idx = find_interval(x);
-        if (idx < 0) {
-            /* valeur hors [0,255] -> erreur */
-            free(buf);
+        if (idx == -1) {
+            fprintf(stderr, "Erreur: valeur %u hors intervalles VLC\n", x);
+            free(*out_buf);
             return 0;
         }
-
         const QuantInterval *qi = &Q[idx];
 
-        /* a) préfixe Ck */
-        unsigned char pref = qi->prefix;
-        /* on garde seulement les plen bits de poids fort */
-        pref &= (unsigned char)(0xFFu << (CHAR_BIT - qi->plen));
-        total_bits += pushbits(pref, qi->plen, &bs);
+        // 3. Écrire le préfixe
+        total_bits += pushbits((unsigned char)qi->prefix, qi->plen, &bs);
 
-        /* b) valeur translatée y = x - binf sur p bits */
+        // 4. Écrire la valeur y = x - binf
         unsigned int y = x - qi->binf;
-        unsigned char ybyte = (unsigned char)y;
-        total_bits += pushbits(ybyte, qi->p, &bs);
+
+        // GESTION SPECIALE si p > 8 bits (car pushbits prend un unsigned char)
+        if (qi->p > 8) {
+            // On envoie les bits de poids fort (tout sauf le dernier bit)
+            total_bits += pushbits((unsigned char)(y >> 1), qi->p - 1, &bs);
+            // On envoie le dernier bit
+            total_bits += pushbits((unsigned char)(y & 0x01), 1, &bs);
+        } else {
+            total_bits += pushbits((unsigned char)y, qi->p, &bs);
+        }
     }
 
-    *out_buf   = buf;
-    *out_bytes = (total_bits + CHAR_BIT - 1) / CHAR_BIT;
+    // 5. Calculer la taille finale en octets
+    // Si on a fini au milieu d'un octet (cap < 8), cet octet compte
+    *out_size = (bs.ptr - *out_buf) + (bs.cap < CHAR_BIT ? 1 : 0);
+
     return total_bits;
 }
 
@@ -95,10 +94,9 @@ size_t vlc_encode(const unsigned int *in, size_t n,
 
 /* essaie de lire un préfixe (1 à 3 bits) et retourne l'intervalle trouvé,
  * en avançant le BitStream ; -1 en cas d'erreur. */
-static int read_prefix(BitStream *bs)
-{
+static int read_prefix(BitStream *bs) {
     unsigned char tmp = 0;
-    BitStream save = *bs; /* pour annuler en cas d'échec */
+    BitStream save = *bs;
 
     /* 1er bit : si 0 => intervalle 0 */
     if (pullbits(bs, &tmp, 1) != 1)
@@ -106,35 +104,22 @@ static int read_prefix(BitStream *bs)
     if ((tmp & 0x01u) == 0u)
         return 0;
 
-    /* on a lu '1', il faut lire un 2e bit */
+    /* 2e bit : "10" ou "11" */
     tmp = 0;
-    if (pullbits(bs, &tmp, 1) != 1) {
-        *bs = save;
-        return -1;
-    }
-
-    if ((tmp & 0x01u) == 0u) {
-        /* "10" */
+    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
+    if ((tmp & 0x01u) == 0u)
         return 1;
-    }
 
-    /* on a "11", il faut lire un 3e bit */
+    /* 3e bit : "110" ou "111" */
     tmp = 0;
-    if (pullbits(bs, &tmp, 1) != 1) {
-        *bs = save;
-        return -1;
-    }
-    if ((tmp & 0x01u) == 0u) {
-        /* "110" */
+    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
+    if ((tmp & 0x01u) == 0u)
         return 2;
-    }
-    /* "111" */
-    return 3;
+
+    return 3; /* "111" */
 }
 
-size_t vlc_decode(const unsigned char *in_buf, size_t in_bytes,
-                  unsigned int *out, size_t n)
-{
+size_t vlc_decode(const unsigned char *in_buf, size_t in_bytes, unsigned int *out, size_t n) {
     if (!in_buf || !out || in_bytes == 0)
         return 0;
 

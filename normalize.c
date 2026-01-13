@@ -10,10 +10,13 @@ unsigned int *normalize_diff(const diff_image *diff) {
 
     for (size_t i = 0; i < size; ++i) {
         int x = diff->data[i];
-        if (x >= 0)
-            norm[i] = 2 * x;
-        else
-            norm[i] = -2 * x - 1;
+        unsigned int n;
+        if (x >= 0) n = 2 * x;
+        else        n = -2 * x - 1;
+
+        // On sature à 255 pour que ça rentre dans un uchar et dans l'intervalle I3
+        if (n > 255) n = 255; 
+        norm[i] = n;
     }
 
     return norm;

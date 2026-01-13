@@ -26,12 +26,12 @@ diff_image* image_to_diff(const image *img) {
     }
 
     for (size_t c = 0; c < img->layer; ++c) {
-        diff->data[c] = (int16_t)(img->pixmap[c]);
+        diff->data[c] = (int16_t)(img->pixmap[c] / 2);
     }
 
     for (size_t i = img->layer; i < size; ++i) {
-        int curr = img->pixmap[i];
-        int prev = img->pixmap[i - img->layer];
+        int curr = img->pixmap[i] / 2;
+        int prev = img->pixmap[i - img->layer] / 2;
         diff->data[i] = (int16_t)(curr - prev);
     }
 
@@ -75,20 +75,20 @@ image *diff_to_image(const diff_image *diff) {
         int v = diff->data[c];
 
         if (v < 0)   v = 0;
-        if (v > 255) v = 255;
+        if (v > 127) v = 127;
 
-        img->pixmap[c] = (unsigned char)v;
+        img->pixmap[c] = (unsigned char)(v*2);
     }
 
     for (size_t i = img->layer; i < size; ++i) {
-        int prev = img->pixmap[i - img->layer];
+        int prev = img->pixmap[i - img->layer] / 2;
         int d    = (int)diff->data[i];
         int curr = (prev + d);
 
         if (curr < 0)   curr = 0;
-        if (curr > 255) curr = 255;
+        if (curr > 127) curr = 127;
 
-        img->pixmap[i] = (unsigned char)curr;
+        img->pixmap[i] = (unsigned char)(curr*2);
     }
 
     return img;
