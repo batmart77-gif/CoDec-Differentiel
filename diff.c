@@ -3,12 +3,14 @@
 #include <stdlib.h>
 #include "image.h"
 #include "diff.h"
+#include "vlc.h"
+#include "normalize.h"
 
 /* ===================== */
 /*  image -> diff_image  */
 /* ===================== */
 
-diff_image* image_to_diff(const image *img) {
+static diff_image* image_to_diff(const image *img) {
     if (!img || !img->pixmap) return NULL;
 
     diff_image *diff = malloc(sizeof(diff_image));
@@ -95,42 +97,74 @@ image *diff_to_image(const diff_image *diff) {
 }
 
 
-// static int read_dif(const char *path, diff_image *diff);
+int pnmtodif(const char *pnm_path, const char *dif_path) {
+    image img = {0};
+    diff_image *diff = NULL;
+    unsigned int *norm = NULL;
+    unsigned char *vlc_buf = NULL;
+    size_t vlc_bytes = 0;
+    FILE *out = NULL;
+    int ret = 1;
 
-// int diftopnm(const char *difinput, const char *pnmoutput)
-// {
-//     diff_image diff = {0};
-//     image *img = NULL;
-//     int ret = 1; 
+    /* 1. Lecture image */
+    if (!read_image(&img, pnm_path)) goto cleanup;
 
-//     if (!read_dif(difinput, &diff)) {
-//         goto cleanup;
-//     }
+    /* 2. Différentiel */
+    diff = image_to_diff(&img);
+    if (!diff) goto cleanup;
 
-//     img = diff_to_image(&diff);
-//     if (!img) {
-//         goto cleanup;
-//     }
+    size_t total = img.width * img.height * img.layer;
+    size_t rest  = total - img.layer;
 
-//     if (!write_image(img, pnmoutput)) {
-//         goto cleanup;
-//     }
+    /* 3. Normalisation (SAUF first pixel) */
+    norm = malloc(rest * sizeof(unsigned int));
+    if (!norm) goto cleanup;
 
-//     ret = 0; 
+    norm = normalize_diff(diff);
+    if (!norm) {
+        fprintf(stderr, "bouuu t trop nul");
+    }
 
-// cleanup:
-//     if (diff.data)
-//         free(diff.data);
-//     if (img) {
-//         free_image(img);
-//         free(img);
-//     }
-//     return ret;
-// }
+    /* 4. VLC */
+    if (!vlc_encode(norm, rest, &vlc_buf, &vlc_bytes)) goto cleanup;
 
-// static int read_dif(const char *path, diff_image *diff)
-// {
-//     (void)path;
-//     (void)diff;
-//     return 0;
-// }
+    /* 5. Ouverture fichier */
+    out = fopen(dif_path, "wb");
+    if (!out) goto cleanup;
+
+    /* ---------- EN-TÊTE ---------- */
+
+    unsigned short magic = (img.layer == 1) ? 0xD1FF : 0xD3FF;
+    unsigned short w = img.width;
+    unsigned short h = img.height;
+
+    fwrite(&magic, 2, 1, out);
+    fwrite(&w, 2, 1, out);
+    fwrite(&h, 2, 1, out);
+
+    unsigned char q = 4;
+    unsigned char qbits[4] = {1,2,4,8};
+
+    fwrite(&q, 1, 1, out);
+    fwrite(qbits, 1, 4, out);
+
+    /* ---------- FIRST PIXEL ---------- */
+    for (size_t c = 0; c < img.layer; c++) {
+        unsigned char first = (unsigned char)(diff->data[c] * 2);
+        fwrite(&first, 1, 1, out);
+    }
+
+    /* ---------- BUFFER VLC ---------- */
+    fwrite(vlc_buf, 1, vlc_bytes, out);
+
+    ret = 0;
+
+cleanup:
+    if (out) fclose(out);
+    free(vlc_buf);
+    free(norm);
+    if (diff) { free(diff->data); free(diff); }
+    free_image(&img);
+    return ret;
+}
+

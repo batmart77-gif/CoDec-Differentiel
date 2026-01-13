@@ -12,13 +12,7 @@ typedef struct {
     int16_t *data;   // IMPORTANT : signé
 } diff_image;
 
-/* Encodeur : image PNM -> diff en mémoire */
-diff_image* image_to_diff(const image *img);
-
-/* Décodeur : diff en mémoire -> image PNM */
-image* diff_to_image(const diff_image *diff);
-
-/* Décodeur fichier : DIF -> PNM (squelettes, à compléter quand tu auras le format DIF) */
-int diftopnm(const char *difinput, const char *pnmoutput);
+int pnmtodif(const char *pnm_path, const char *dif_path);
+image *diff_to_image(const diff_image *diff);
 
 #endif

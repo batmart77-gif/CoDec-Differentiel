@@ -10,121 +10,36 @@
 #include "normalize.h"
 #include "vlc.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     int opt;
-    char *image_path = NULL;
+    char *input = NULL;
+    char *output = NULL;
 
-    image img = {0};
-    diff_image *diff = NULL;
-    image *recon = NULL;
-    unsigned int *norm = NULL;
-    unsigned int *norm_dec = NULL;
-    unsigned char *vlc_buf = NULL;
-
-
-    /*Gestion des options */
-    while ((opt = getopt(argc, argv, "i:")) != -1) {
+    while ((opt = getopt(argc, argv, "i:o:")) != -1) {
         switch (opt) {
-            case 'i':
-                image_path = strdup(optarg);
-                break;
-            default:
-                fprintf(stderr, "Usage: %s -i <image>\n", argv[0]);
-                return 1;
+        case 'i': input = strdup(optarg); break;
+        case 'o': output = strdup(optarg); break;
+        default:
+            fprintf(stderr, "Usage: %s -i image.pnm -o image.dif\n", argv[0]);
+            return 1;
         }
     }
 
-    if (image_path == NULL) {
-        fprintf(stderr, "Erreur: option -i obligatoire\n");
+    if (!input || !output) {
+        fprintf(stderr, "Erreur: -i et -o obligatoires\n");
         return 1;
     }
 
-    /* Lecture image (TP7)*/
-    if (!read_image(&img, image_path)) {
-        fprintf(stderr, "Erreur: impossible de lire l'image\n");
-        goto cleanup;
+    if (pnmtodif(input, output) != 0) {
+        fprintf(stderr, "pnmtodif a échoué\n");
+        return 1;
     }
 
-    printf("Image chargée: %zu x %zu, layers=%zu\n",
-           img.width, img.height, img.layer);
+    printf("Encodage DIF OK : %s → %s\n", input, output);
 
-    /*Transformation diff */
-    diff = image_to_diff(&img);
-    if (!diff) {
-        fprintf(stderr, "Erreur: image_to_diff a échoué\n");
-        goto cleanup;
-    }
-
-    printf("Transformation différentielle OK\n");
-
-    /* diff -> normalisation */
-    size_t size = diff->width * diff->height * diff->layer;
-    norm = normalize_diff(diff);
-    if (!norm) {
-        fprintf(stderr, "Erreur: normalize_diff a échoué\n");
-        goto cleanup;
-    }
-    printf("Normalisation OK\n");
-
-    /*Fonctions pour la VLC à mettre ici*/
-        /* --- VLC : norm -> flux binaire -> norm_decoded --- */
-    size_t vlc_bytes = 0;
-
-    size_t bits_written = vlc_encode(norm, size, &vlc_buf, &vlc_bytes);
-    if (!bits_written) {
-        fprintf(stderr, "Erreur: vlc_encode a échoué\n");
-        goto cleanup;
-    }
-    printf("VLC encodage OK (%zu bits, %zu octets)\n", bits_written, vlc_bytes);
-
-    norm_dec = malloc(size * sizeof(unsigned int));
-    if (!norm_dec) {
-        fprintf(stderr, "Erreur: malloc norm_dec\n");
-        goto cleanup;
-    }
-
-    size_t bits_read = vlc_decode(vlc_buf, vlc_bytes, norm_dec, size);
-    if (!bits_read) {
-        fprintf(stderr, "Erreur: vlc_decode a échoué\n");
-        goto cleanup;
-    }
-    printf("VLC décodage OK (%zu bits)\n", bits_read);
-
-    /* on peut maintenant utiliser norm_dec pour la dénormalisation */
-    denormalize_diff(norm_dec, size, diff);
-    printf("Dénormalisation OK\n");
-
-    /* diff -> image */
-    recon = diff_to_image(diff);
-    if (!recon) {
-        fprintf(stderr, "Erreur: diff_to_image a échoué\n");
-        goto cleanup;
-    }
-
-    printf("Reconstruction OK\n");
-
-    /* Écriture image reconstruite */
-    if (!write_image(recon, "reconstructed.pnm")) {
-        fprintf(stderr, "Erreur: écriture de reconstructed.pnm\n");
-        goto cleanup;
-    }
-
-    printf("Image reconstruite écrite dans reconstructed.pnm\n");
-
-cleanup:
-    free(norm);
-    free(norm_dec);
-    free(vlc_buf);
-    if (diff) {
-        free(diff->data);
-        free(diff);
-    }
-    if (recon) {
-        free_image(recon);
-        free(recon);
-    }
-    free_image(&img);
-    free(image_path);
+    free(input);
+    free(output);
     return 0;
 }
 
