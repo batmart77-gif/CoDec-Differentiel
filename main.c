@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
 
 
 
+
 // pour tester les fonctions normalize/denormalize (ctrl + / pour commenter/decommenter)
 // int main(void) {
 //     diff_image diff;

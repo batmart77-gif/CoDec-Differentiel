@@ -4,13 +4,12 @@
 #include <limits.h>
 #include "bitstream.h"
 
-size_t pushbits(unsigned char src, size_t nbit, BitStream* dst) {
+size_t pushbits(unsigned int src, size_t nbit, BitStream* dst) {
     size_t bits_written = 0;
-
     while (nbit > 0) {
         size_t to_write = (nbit <= dst->cap) ? nbit : dst->cap;
-        unsigned char aligned_bits = src >> (nbit - to_write);
-        aligned_bits &= (1 << to_write) - 1;
+        // On décale src (qui est un int maintenant)
+        unsigned char aligned_bits = (unsigned char)((src >> (nbit - to_write)) & ((1 << to_write) - 1));
 
         *dst->ptr |= aligned_bits << (dst->cap - to_write);
         dst->cap -= to_write;
@@ -19,17 +18,16 @@ size_t pushbits(unsigned char src, size_t nbit, BitStream* dst) {
         
         if (dst->cap == 0) {
             dst->ptr++;
-            *dst->ptr = 0; // initialiser un nouveau octet
+            *dst->ptr = 0; 
             dst->cap = CHAR_BIT;
         }
     }
-
     return bits_written;
 }
 
-size_t pullbits(BitStream* src, unsigned char* dst, size_t nbit) {
+size_t pullbits(BitStream* src, unsigned int* dst, size_t nbit) {
     size_t bits_read = 0;
-    *dst = 0;
+    *dst = 0; // dst est un pointeur vers unsigned int
     while (nbit > 0) {
         size_t to_read = (nbit <= src->cap) ? nbit : src->cap;
         unsigned char extracted_bits = (*src->ptr >> (src->cap - to_read)) & ((1 << to_read) - 1);

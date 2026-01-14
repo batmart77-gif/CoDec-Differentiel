@@ -12,18 +12,23 @@ unsigned int *normalize_diff(const int16_t *data, size_t size) {
         if (x >= 0) norm[i] = 2 * x;
         else        norm[i] = -2 * x - 1;
         
-        // Suration à 255 : OK pour rester dans I3
-        if (norm[i] > 255) norm[i] = 255;
     }
     return norm;
 }
 
-void denormalize_diff(const unsigned int *norm, size_t size, int16_t *out_data) {
-    for (size_t i = 0; i < size; ++i) {
-        unsigned int y = norm[i];
-        if (y % 2 == 0)
-            out_data[i] = (int16_t)(y / 2);
-        else
-            out_data[i] = (int16_t)(-(int)(y + 1) / 2);
+void denormalize_diff(const unsigned int *norm, size_t size, int16_t *diff) {
+    for (size_t i = 0; i < size; i++) {
+        unsigned int v = norm[i];
+        int16_t res;
+
+        // 1. Inversion du ZigZag (positifs/négatifs)
+        if (v % 2 == 0) {
+            res = (int16_t)(v / 2);
+        } else {
+            res = (int16_t)-((v + 1) / 2);
+        }
+
+        // 2. LE REGLAGE DE L'ÉCHELLE
+        diff[i] = (int16_t)(res * 2); 
     }
 }
