@@ -182,9 +182,9 @@ int pnmtodif(const char *pnm_path, const char *dif_path)
     }
 
     // Header (11 octets)
-    uint16_t magic = (diff->layer == 1) ? 0xD1FF : 0xD3FF;
-    uint16_t w = (uint16_t)diff->width;
-    uint16_t h = (uint16_t)diff->height;
+    unsigned short magic = (diff->layer == 1) ? 0xD1FF : 0xD3FF;
+    unsigned short w = diff->width;
+    unsigned short h = diff->height;
 
     fwrite(&magic, 2, 1, out);
     fwrite(&w, 2, 1, out);
@@ -194,7 +194,6 @@ int pnmtodif(const char *pnm_path, const char *dif_path)
 
     // Écriture des First Pixels
     for (size_t c = 0; c < diff->layer; ++c) {
-        // On divise par 2 pour que ça rentre dans un unsigned char (0-127)
         unsigned char first = (unsigned char)(diff->data[c]);
         fwrite(&first, 1, 1, out);
     }
@@ -240,8 +239,8 @@ int diftopnm(const char *dif_path, const char *pnm_path)
     }
 
     /* ---------- 2. LECTURE EN-TÊTE ---------- */
-    uint16_t magic = 0;
-    uint16_t w = 0, h = 0;
+    unsigned short magic = 0;
+    unsigned short w = 0, h = 0;
     unsigned char q = 0;
     unsigned char qbits[4];
 

@@ -6,8 +6,8 @@
 #include "image.h"
 
 typedef struct {
-    size_t width;
-    size_t height;
+    unsigned short width;
+    unsigned short height;
     size_t layer;
     int16_t *data;   // IMPORTANT : signé
 } diff_image;
