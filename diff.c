@@ -120,7 +120,8 @@ int pnmtodif(const char *pnm_path, const char *dif_path) {
     norm = malloc(rest * sizeof(unsigned int));
     if (!norm) goto cleanup;
 
-    norm = normalize_diff(diff);
+    // On envoie diff->data + img.layer pour ne normaliser QUE les différences
+    norm = normalize_diff(diff->data + img.layer, rest);
     if (!norm) {
         fprintf(stderr, "bouuu t trop nul");
     }
@@ -157,6 +158,21 @@ int pnmtodif(const char *pnm_path, const char *dif_path) {
     /* ---------- BUFFER VLC ---------- */
     fwrite(vlc_buf, 1, vlc_bytes, out);
 
+    size_t brute = (size_t)img.width * img.height * img.layer;
+    
+    // Le fichier DIF fait : 2(magic) + 2(w) + 2(h) + 1(q) + 4(qbits) + 1*layer(first pix) + vlc_bytes
+    size_t comp = 11 + img.layer + vlc_bytes; 
+    
+    double ratio = (double)comp / brute;
+    double gain = (1.0 - ratio) * 100.0;
+
+    printf("\n--- Statistiques de compression ---\n");
+    printf("Taille originale     : %zu octets\n", brute);
+    printf("Taille compressée    : %zu octets\n", comp);
+    printf("Taux de compression  : %.2f%%\n", ratio*100);
+    printf("Espace gagné (Gain)  : %.2f%%\n", gain);
+    printf("------------------------------------\n");
+
     ret = 0;
 
 cleanup:
@@ -168,3 +184,121 @@ cleanup:
     return ret;
 }
 
+int diftopnm(const char *dif_path, const char *pnm_path)
+{
+    FILE *in = NULL;
+    image *img = NULL;
+    diff_image *diff = NULL;
+    unsigned int *norm = NULL;
+    unsigned char *vlc_buf = NULL;
+    int ret = 1; /* échec par défaut */
+
+    /* ---------- 1. OUVERTURE FICHIER DIF ---------- */
+    in = fopen(dif_path, "rb");
+    if (!in) {
+        perror("diftopnm: fopen input");
+        goto cleanup;
+    }
+
+    /* ---------- 2. LECTURE EN-TÊTE ---------- */
+    uint16_t magic = 0;
+    uint16_t w = 0, h = 0;
+    unsigned char q = 0;
+    unsigned char qbits[4];
+
+    if (fread(&magic, 2, 1, in) != 1) goto cleanup;
+    if (fread(&w, 2, 1, in) != 1) goto cleanup;
+    if (fread(&h, 2, 1, in) != 1) goto cleanup;
+    if (fread(&q, 1, 1, in) != 1) goto cleanup;
+    if (fread(qbits, 1, 4, in) != 4) goto cleanup;
+
+    /* Vérif rapide du magic pour déterminer layer (P5/P6) */
+    size_t layer = 0;
+    if (magic == 0xD1FF) {
+        layer = 1; /* PGM */
+    } else if (magic == 0xD3FF) {
+        layer = 3; /* PPM */
+    } else {
+        fprintf(stderr, "diftopnm: magic number DIF invalide (0x%04X)\n", magic);
+        goto cleanup;
+    }
+
+    /* ---------- 3. ALLOCATION diff_image ET LECTURE FIRST PIXELS ---------- */
+    diff = malloc(sizeof(*diff));
+    if (!diff) goto cleanup;
+
+    diff->width  = w;
+    diff->height = h;
+    diff->layer  = layer;
+
+    size_t total = (size_t)w * (size_t)h * layer;
+    diff->data = malloc(total * sizeof(int16_t));
+    if (!diff->data) goto cleanup;
+
+    /* first pixels (layer premiers coefficients, stockés comme diff->data[c]*2 à l'encode) */
+    for (size_t c = 0; c < layer; ++c) {
+        unsigned char first = 0;
+        if (fread(&first, 1, 1, in) != 1) goto cleanup;
+        diff->data[c] = (int16_t)(first / 2);
+    }
+
+    /* ---------- 4. LECTURE BUFFER VLC ---------- */
+    /* On lit tout le reste du fichier en mémoire */
+    if (fseek(in, 0, SEEK_END) != 0) goto cleanup;
+    long end_pos = ftell(in);
+    if (end_pos < 0) goto cleanup;
+    if (fseek(in, 2 + 2 + 2 + 1 + 4 + (long)layer, SEEK_SET) != 0) goto cleanup;
+
+    long data_pos = ftell(in);
+    if (data_pos < 0) goto cleanup;
+    size_t vlc_bytes = (size_t)(end_pos - data_pos);
+
+    vlc_buf = malloc(vlc_bytes);
+    if (!vlc_buf) goto cleanup;
+    if (fread(vlc_buf, 1, vlc_bytes, in) != vlc_bytes) goto cleanup;
+
+    /* ---------- 5. VLC DECODE + DÉNORMALISATION ---------- */
+    /* On n’a encodé que total - layer coefficients différentiels */
+    size_t rest = total - layer;
+
+    norm = malloc(rest * sizeof(unsigned int));
+    if (!norm) goto cleanup;
+
+    if (vlc_decode(vlc_buf, vlc_bytes, norm, rest) == 0) {
+        fprintf(stderr, "diftopnm: vlc_decode a échoué\n");
+        goto cleanup;
+    }
+
+    /* Dénormalisation dans diff->data[layer..] */
+    // On écrit le résultat directement dans diff->data en sautant les 'layer' premiers
+    denormalize_diff(norm, rest, diff->data + layer);
+
+    /* ---------- 6. DIFF -> IMAGE ---------- */
+    img = diff_to_image(diff);
+    if (!img) {
+        fprintf(stderr, "diftopnm: diff_to_image a échoué\n");
+        goto cleanup;
+    }
+
+    /* ---------- 7. ÉCRITURE PNM ---------- */
+    if (!write_image(img, pnm_path)) {
+        fprintf(stderr, "diftopnm: write_image a échoué\n");
+        goto cleanup;
+    }
+
+    ret = 0; /* succès */
+
+    cleanup:
+    if (in) fclose(in);
+    free(vlc_buf);
+    free(norm);
+    if (diff) {
+        free(diff->data);
+        free(diff);
+    }
+    if (img) {
+        free_image(img);
+        free(img);
+    }
+    return ret;
+}

@@ -26,7 +26,7 @@ static const QuantInterval Q[4] = {
     {  0u,   4u, 2u, 0, 1u }, /* "0"   */
     {  4u,  20u, 4u, 2, 2u }, /* "10"  */
     { 20u,  52u, 5u, 6, 3u }, /* "110" */
-    { 52u, 512u, 8u, 7, 3u }  /* "111" */
+    { 52u, 256u, 8u, 7, 3u }  /* "111" */
 };
 
 /* Cherche l'intervalle contenant x dans Q, retourne son index (0..3) ou -1 si erreur */

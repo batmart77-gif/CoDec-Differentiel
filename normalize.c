@@ -1,33 +1,29 @@
 #include <stdlib.h>
 #include "normalize.h"
 
-unsigned int *normalize_diff(const diff_image *diff) {
-    if (!diff || !diff->data) return NULL;
+unsigned int *normalize_diff(const int16_t *data, size_t size) {
+    if (!data || size == 0) return NULL;
 
-    size_t size = diff->width * diff->height * diff->layer;
     unsigned int *norm = malloc(size * sizeof(unsigned int));
     if (!norm) return NULL;
 
     for (size_t i = 0; i < size; ++i) {
-        int x = diff->data[i];
-        unsigned int n;
-        if (x >= 0) n = 2 * x;
-        else        n = -2 * x - 1;
-
-        // On sature à 255 pour que ça rentre dans un uchar et dans l'intervalle I3
-        if (n > 255) n = 255; 
-        norm[i] = n;
+        int x = data[i];
+        if (x >= 0) norm[i] = 2 * x;
+        else        norm[i] = -2 * x - 1;
+        
+        // Suration à 255 : OK pour rester dans I3
+        if (norm[i] > 255) norm[i] = 255;
     }
-
     return norm;
 }
 
-void denormalize_diff(const unsigned int *norm, size_t size, diff_image *diff) {
+void denormalize_diff(const unsigned int *norm, size_t size, int16_t *out_data) {
     for (size_t i = 0; i < size; ++i) {
         unsigned int y = norm[i];
         if (y % 2 == 0)
-            diff->data[i] = (int16_t)(y / 2);
+            out_data[i] = (int16_t)(y / 2);
         else
-            diff->data[i] = (int16_t)(-(int)(y + 1) / 2);
+            out_data[i] = (int16_t)(-(int)(y + 1) / 2);
     }
 }

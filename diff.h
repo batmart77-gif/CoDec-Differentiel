@@ -14,5 +14,6 @@ typedef struct {
 
 int pnmtodif(const char *pnm_path, const char *dif_path);
 image *diff_to_image(const diff_image *diff);
+int diftopnm(const char *dif_path, const char *pnm_path);
 
 #endif

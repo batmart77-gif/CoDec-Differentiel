@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include "diff.h"
 
-unsigned int *normalize_diff(const diff_image *diff);
-void denormalize_diff(const unsigned int *norm, size_t size, diff_image *diff);
+unsigned int *normalize_diff(const int16_t *data, size_t size);
+void denormalize_diff(const unsigned int *norm, size_t size, int16_t *out_data);
 
 #endif
