@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 typedef struct {
-    size_t width;
+    size_t width; 
     size_t height;
     size_t layer; 
     unsigned char *pixmap;

@@ -8,7 +8,7 @@ size_t pushbits(unsigned int src, size_t nbit, BitStream* dst) {
     size_t bits_written = 0;
     while (nbit > 0) {
         size_t to_write = (nbit <= dst->cap) ? nbit : dst->cap;
-        // On décale src (qui est un int maintenant)
+        // On décale src
         unsigned char aligned_bits = (unsigned char)((src >> (nbit - to_write)) & ((1 << to_write) - 1));
 
         *dst->ptr |= aligned_bits << (dst->cap - to_write);

@@ -6,10 +6,6 @@
 #include "vlc.h"
 #include "normalize.h"
 
-/* ===================== */
-/*  image -> diff_image  */
-/* ===================== */
-
 static diff_image* image_to_diff(const image *img) {
     if (!img || !img->pixmap) return NULL;
 
@@ -36,7 +32,7 @@ static diff_image* image_to_diff(const image *img) {
         return NULL;
     }
 
-    // 1. Gestion des premiers pixels (First Pixels)
+    // 1. Gestion des premiers pixels
     for (size_t c = 0; c < img->layer; ++c) {
         // On divise par 2 pour le stockage
         int16_t val = (int16_t)(img->pixmap[c] / 2);
@@ -48,22 +44,22 @@ static diff_image* image_to_diff(const image *img) {
         reconstructed[c] = (unsigned char)rec_val;
     }
 
-    // 2. Boucle avec prédiction (Feedback Loop)
+    // 2. Boucle avec prédiction
     for (size_t i = img->layer; i < size; ++i) {
         int curr = (int)img->pixmap[i];
-        // On calcule la différence par rapport au pixel RECONSTRUIT précédent
+        // On calcule la différence par rapport au pixel reconstruit précédent
         int prev = (int)reconstructed[i - img->layer]; 
         
         int d = curr - prev;
         int16_t encoded_diff;
 
-        // Division par 2 avec arrondi correct
+        // Division par 2 avec arrondi
         if (d >= 0) encoded_diff = (int16_t)(d / 2);
         else        encoded_diff = (int16_t)((d - 1) / 2);
 
         diff->data[i] = encoded_diff;
 
-        // On simule la reconstruction pour le pixel SUIVANT
+        // On simule la reconstruction pour le pixel suivant
         int rec_val = prev + (encoded_diff * 2);
         
         // Clamping (indispensable pour que l'encodeur et le décodeur soient synchrones)
@@ -79,7 +75,7 @@ static diff_image* image_to_diff(const image *img) {
 
 
 
-image *diff_to_image(const diff_image *diff) {
+static image *diff_to_image(const diff_image *diff) {
     if (!diff || !diff->data)
         return NULL;
 
@@ -206,6 +202,21 @@ int pnmtodif(const char *pnm_path, const char *dif_path)
 
     ret = 0; // Succès !
     printf("Compression réussie : %s -> %s (%zu octets vlc)\n", pnm_path, dif_path, vlc_bytes);
+    // --- Calcul du taux de compression ---
+    long pnm_size = (long)img->pixmap_size; // Taille brute des pixels
+    // On récupère la taille du fichier DIF écrit
+    fseek(out, 0, SEEK_END);
+    long dif_size = ftell(out);
+
+    double ratio = (double)dif_size / (double)pnm_size;
+    double gain = (1.0 - ratio) * 100.0;
+
+    printf("\n--- STATISTIQUES ---\n");
+    printf("Taille originale (pixels) : %ld octets\n", pnm_size);
+    printf("Taille compressée (DIF)   : %ld octets\n", dif_size);
+    printf("Taux de compression       : %.2f%%\n", ratio*100);
+    printf("Gain d'espace             : %.2f%%\n", gain);
+    printf("--------------------\n");
 
 cleanup:
     if (out) fclose(out);
@@ -282,7 +293,7 @@ int diftopnm(const char *dif_path, const char *pnm_path)
     diff->data = malloc(total * sizeof(int16_t));
     if (!diff->data) goto cleanup;
 
-    /* first pixels (layer premiers coefficients, stockés comme diff->data[c]*2 à l'encode) */
+    /* first pixels */
     for (size_t c = 0; c < layer; ++c) {
         unsigned char first = 0;
         if (fread(&first, 1, 1, in) != 1) goto cleanup;
@@ -305,7 +316,6 @@ int diftopnm(const char *dif_path, const char *pnm_path)
     if (fread(vlc_buf, 1, vlc_bytes, in) != vlc_bytes) goto cleanup;
 
     /* ---------- 5. VLC DECODE + DÉNORMALISATION ---------- */
-    /* On n’a encodé que total - layer coefficients différentiels */
     size_t rest = total - layer;
 
     norm = malloc(rest * sizeof(unsigned int));
@@ -316,8 +326,7 @@ int diftopnm(const char *dif_path, const char *pnm_path)
         goto cleanup;
     }
 
-    /* Dénormalisation dans diff->data[layer..] */
-    // On écrit le résultat directement dans diff->data en sautant les 'layer' premiers
+    /* Dénormalisation */
     denormalize_diff(norm, rest, diff->data + layer);
 
     /* ---------- 6. DIFF -> IMAGE ---------- */

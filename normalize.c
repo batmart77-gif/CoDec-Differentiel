@@ -21,14 +21,12 @@ void denormalize_diff(const unsigned int *norm, size_t size, int16_t *diff) {
         unsigned int v = norm[i];
         int16_t res;
 
-        // 1. Inversion du ZigZag (positifs/négatifs)
         if (v % 2 == 0) {
             res = (int16_t)(v / 2);
         } else {
             res = (int16_t)-((v + 1) / 2);
         }
 
-        // 2. LE REGLAGE DE L'ÉCHELLE
         diff[i] = (int16_t)(res * 2); 
     }
 }

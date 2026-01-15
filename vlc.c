@@ -6,23 +6,6 @@
 #include "bitstream.h"
 #include "vlc.h"
 
-/* Quantificateur fixe du sujet (4 intervalles) [file:136]
- *
- * I0 : [0,4[    longueur 4  = 2^2  prefixe "0"
- * I1 : [4,20[   longueur 16 = 2^4  prefixe "10"
- * I2 : [20,52[  longueur 32 = 2^5  prefixe "110"
- * I3 : [52,256[ longueur 204 ~ 2^8 prefixe "111"
- */
-
-typedef struct {
-    unsigned int binf;   /* borne inf incluse */
-    unsigned int bsup;   /* borne sup exclue */
-    unsigned int p;      /* nb de bits pour y = x-binf */
-    unsigned char prefix;/* bits du préfixe, alignés à gauche dans un octet */
-    unsigned int plen;   /* nb de bits significatifs dans prefix */
-} QuantInterval;
-
-
 static void write_prefix(BitStream *bs, int idx) {
     switch (idx) {
         case 0:
@@ -40,9 +23,36 @@ static void write_prefix(BitStream *bs, int idx) {
     }
 }
 
+/* essaie de lire un préfixe (1 à 3 bits) et retourne l'intervalle trouvé,
+ * en avançant le BitStream ; -1 en cas d'erreur. */
+static int read_prefix(BitStream *bs) {
+    unsigned int tmp = 0;
+    BitStream save = *bs;
+
+    /* 1er bit : si 0 => intervalle 0 */
+    if (pullbits(bs, &tmp, 1) != 1)
+        return -1;
+    if ((tmp & 0x01u) == 0u)
+        return 0;
+
+    /* 2e bit : "10" ou "11" */
+    tmp = 0;
+    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
+    if ((tmp & 0x01u) == 0u)
+        return 1;
+
+    /* 3e bit : "110" ou "111" */
+    tmp = 0;
+    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
+    if ((tmp & 0x01u) == 0u)
+        return 2;
+
+    return 3; /* "111" */
+}
+
 /* ----------------- ENCODAGE ----------------- */
 
-size_t vlc_encode(unsigned int *input, size_t n, unsigned char **out_buf, size_t *out_bytes, unsigned char *qbits) {
+int vlc_encode(unsigned int *input, size_t n, unsigned char **out_buf, size_t *out_bytes, unsigned char *qbits) {
     if (!input || n == 0) return 0;
 
     // 1. Calcul des bornes binf à partir des qbits fournis
@@ -52,7 +62,7 @@ size_t vlc_encode(unsigned int *input, size_t n, unsigned char **out_buf, size_t
     binf[2] = binf[1] + (1 << qbits[1]);
     binf[3] = binf[2] + (1 << qbits[2]);
 
-    // 2. Initialisation du BitStream (prévoir assez large pour le buffer)
+    // 2. Initialisation du BitStream (on prévoit assez large pour le buffer)
     BitStream bs;
     *out_buf = calloc(n * 4, 1); // Allocation sécurisée
     bs.ptr = *out_buf;
@@ -84,34 +94,7 @@ size_t vlc_encode(unsigned int *input, size_t n, unsigned char **out_buf, size_t
 
 /* ----------------- DECODAGE ----------------- */
 
-/* essaie de lire un préfixe (1 à 3 bits) et retourne l'intervalle trouvé,
- * en avançant le BitStream ; -1 en cas d'erreur. */
-static int read_prefix(BitStream *bs) {
-    unsigned int tmp = 0;
-    BitStream save = *bs;
-
-    /* 1er bit : si 0 => intervalle 0 */
-    if (pullbits(bs, &tmp, 1) != 1)
-        return -1;
-    if ((tmp & 0x01u) == 0u)
-        return 0;
-
-    /* 2e bit : "10" ou "11" */
-    tmp = 0;
-    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
-    if ((tmp & 0x01u) == 0u)
-        return 1;
-
-    /* 3e bit : "110" ou "111" */
-    tmp = 0;
-    if (pullbits(bs, &tmp, 1) != 1) { *bs = save; return -1; }
-    if ((tmp & 0x01u) == 0u)
-        return 2;
-
-    return 3; /* "111" */
-}
-
-size_t vlc_decode(const unsigned char *in_buf, size_t in_bytes, unsigned int *out, size_t n, unsigned char *qbits) {
+int vlc_decode(const unsigned char *in_buf, size_t in_bytes, unsigned int *out, size_t n, unsigned char *qbits) {
     if (!in_buf || !out || in_bytes == 0) return 0;
 
     // On reconstruit les intervalles à la volée selon les qbits du fichier
