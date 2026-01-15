@@ -17,6 +17,8 @@ Le codec permet :
 ---
 
 ## Compilation
+A faire dans le répertoire codec ET dans le répertoire app
+
 
 Compilation avec `make` :
 
@@ -35,12 +37,12 @@ make clean
 
 Encodage (PNM → DIF)
 ```bash
-./codec -i boat.pgm -o boat.dif
+./codec_app -i boat.pgm -o boat.dif
 ``` 
 
 Décodage (DIF -> PNM)
 ```bash
-./codec -d -i boat.dif -o reconstructed.pnm
+./codec_app -d -i boat.dif -o reconstructed.pnm
 ```
 
 ---

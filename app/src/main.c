@@ -6,9 +6,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "image.h"
-#include "diff.h"
-#include "vlc.h"
+#include <codec.h>
+
 
 void print_help(char *bin) {
     printf("Usage: %s [OPTIONS] -i <input> -o <output>\n", bin);
