@@ -1,0 +1,5 @@
+.vscode/
+*.zip
+*.o
+*.a
+build/
